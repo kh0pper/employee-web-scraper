@@ -12,7 +12,7 @@ import difflib
 
 # Google Sheets setup
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-CREDS_FILE = "/home/kh0pp/aisd-employees-scraper-454821-e834435dfd17.json"
+CREDS_FILE = "~/path-to-credentials.json"
 SHEET_NAME = "AISD Employees"
 
 # List of job titles to scrape
