@@ -14,7 +14,71 @@ import os
 
 app = Flask(__name__)
 
-# ... (Keep ALLOWED_JOB_TITLES, CAMPUSES, CAMPUS_MAPPINGS unchanged)
+# List of job titles to scrape
+ALLOWED_JOB_TITLES = {
+    "Academy Director", "Administrative Assistant", "Advisor College and Career", "Assistant Data Processing",
+    "Assistant Principal ES", "Assistant Principal HS", "Assistant Principal MS", "Clerk",
+    "Counselor ES", "Counselor ES Bilingual", "Counselor HS", "Counselor HS Bilingual",
+    "Counselor MS", "Counselor MS Bilingual", "Counselor Wellness", "GF Academic Dean",
+    "GF Academy Director", "GF Specialist Parent Support", "Guidance Secretary", "Part Time Counselor ES", "Part Time Counselor MS", "Part Time Counselor HS",
+    "Principal ES", "Principal HS", "Principal HS Interim", "Principal ES Interim",
+    "Principal MS", "Principal MS Interim", "Principal SSC", "Registrar",
+    "Registrar SSC", "School Nurse", "Specialist Attendance",
+    "Licensed Mental Health Professional"
+}
+
+# List of campuses for matching
+CAMPUSES = [
+    "Akins Early College High School", "Allison Elementary School", "Anderson High School",
+    "Andrews Elementary School", "Ann Richards School for Young Women Leaders",
+    "Austin High School", "Austin ISD PreK Partnership PKP", "Bailey Middle School",
+    "Baldwin Elementary School", "Baranoff Elementary School", "Barrington Elementary School",
+    "Barton Hills Elementary School", "Bear Creek Elementary School", "Becker Elementary School",
+    "Bedichek Middle School", "Bertha Sadler Means Young Women's Leadership Academy",
+    "Blackshear Elementary School", "Blanton Elementary School", "Blazier Elementary School",
+    "Boone Elementary School", "Bowie High School", "Brentwood Elementary School",
+    "Bryker Woods Elementary School", "Burnet Middle School", "Campbell Elementary School",
+    "Casey Elementary School", "Casis Elementary School", "Clayton Elementary School",
+    "Clifton Career Center", "Cook Elementary School", "Counseling & Mental Health", "Covington Middle School",
+    "Cowan Elementary School", "Crockett Early College High School", "Cunningham Elementary School",
+    "Davis Elementary School", "Dawson Elementary School", "Dobie Middle School",
+    "Doss Elementary School", "Early Referral Center", "Eastside Early College High School",
+    "Galindo Elementary School", "Garza Independence High School", "Gorzycki Middle School",
+    "Govalle Elementary School", "Graduation Preparatory Academy at Navarro",
+    "Graduation Preparatory Academy at Travis", "Graham Elementary School", "Greenleaf NCC",
+    "Guerrero-Thompson Elementary School", "Gullett Elementary School",
+    "Gus Garcia Young Men's Leadership Academy", "Harris Elementary School",
+    "Hart Elementary School", "Health Services and Nursing", "Highland Park Elementary School", "Hill Elementary School",
+    "Houston Elementary School", "International High School", "JJAEP (Juvenile Justice Educ Pro)",
+    "Jordan Elementary School", "Joslin Elementary School", "Kealing Middle School",
+    "Kiker Elementary School", "Kocurek Elementary School", "Lamar Middle School",
+    "Langford Elementary School", "LBJ Early College High School", "Leadership Academy",
+    "Lee Elementary School", "Liberal Arts and Science Academy", "Linder Elementary School",
+    "Lively Middle School", "Maplewood Elementary School", "General Marshall Middle School",
+    "Martin Middle School", "Mathews Elementary School", "McBee Elementary School",
+    "McCallum High School", "Menchaca Elementary School", "Mendez Middle School",
+    "Mills Elementary School", "Murchison Middle School", "Navarro Early College High School",
+    "Norman-Sims Elementary School", "Northeast Early College High School", "O. Henry Middle School",
+    "Oak Hill Elementary School", "Oak Springs Elementary School", "Odom Elementary School",
+    "Ortega Elementary School", "Overton Elementary School", "Padrón Elementary School",
+    "Palm Elementary School", "Paredes Middle School", "Patton Elementary School",
+    "Pecan Springs Elementary School", "Perez Elementary School", "Pickle Elementary School",
+    "Pillow Elementary School", "Pleasant Hill Elementary School", "Reilly Elementary School",
+    "Ridgetop Elementary School", "Rodriguez Elementary School", "Rosedale School",
+    "Sánchez Elementary School", "Small Middle School", "St. Elmo Elementary School",
+    "Summitt Elementary School", "Sunset Valley Elementary School", "T.A. Brown Elementary School",
+    "Travis Early College High School", "Travis Heights Elementary School",
+    "Uphaus Early Childhood Center", "Walnut Creek Elementary School", "Webb Middle School",
+    "Widén Elementary School", "Williams Elementary School", "Winn Montessori School",
+    "Wooldridge Elementary School", "Wooten Elementary School", "Zavala Elementary School",
+    "Zilker Elementary School", "ALC"
+]
+
+# Predefined campus name mappings
+CAMPUS_MAPPINGS = {
+    "Alternative Learning Center": "ALC",
+    "Travis County Juvenile Detention Center": "JJAEP (Juvenile Justice Educ Pro)"
+}
 
 def match_campus(campus_name):
     if campus_name in CAMPUS_MAPPINGS:
@@ -28,51 +92,56 @@ def match_campus(campus_name):
             best_ratio = ratio
             best_match = known_campus
     
-    return best_match if best_ratio >= 0.5 else campus_name
+    if best_ratio >= 0.5:
+        return best_match
+    else:
+        return campus_name  # No input in web app, keep raw name
 
 def scroll_to_bottom(driver):
     print("Scrolling to bottom...")
     for _ in range(3):
         last_height = driver.execute_script("return document.body.scrollHeight")
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        time.sleep(2)  # Reduced from 3
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height == last_height:
             print("Scroll complete.")
             break
 
 def scrape_aisd_directory_selenium(letters_range):
-    print(f"Initializing Selenium driver for range {letters_range}...")
+    print(f"Initializing Selenium WebDriver for range {letters_range}...")
     options = Options()
     options.binary_location = '/usr/bin/google-chrome'
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1280,720")  # Smaller window to reduce memory
-    options.add_argument("--disable-extensions")
-
+    options.add_argument("--window-size=1280,720")  # Smaller window
+    options.add_argument("--disable-extensions")    # Reduce overhead
+    
     service = Service(executable_path='/usr/local/bin/chromedriver')
     driver = webdriver.Chrome(service=service, options=options)
-    driver.set_script_timeout(300)
-    print("Navigating to directory...")
+    print("WebDriver initialized, navigating to directory...")
+
+    driver.set_script_timeout(300)  # 5-minute timeout
     driver.get("https://www.austinisd.org/directory")
     
     wait = WebDriverWait(driver, 60)
     print("Waiting for page to load...")
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-    time.sleep(5)
+    time.sleep(5)  # Reduced from 10
 
     employees = []
 
     try:
         start_idx, end_idx = letters_range.split('-')
         start_idx = ord(start_idx.upper()) - ord('A')
-        end_idx = min(ord(end_idx.upper()) - ord('A') + 1, 26)  # Ensure within alphabet
+        end_idx = min(ord(end_idx.upper()) - ord('A') + 1, start_idx + 2)  # Limit to 2 letters
+        if end_idx > 26: end_idx = 26  # Cap at Z
         letters = [chr(i + ord('A')) for i in range(start_idx, end_idx)]
 
         for idx, letter in enumerate(letters):
-            print(f"Starting scrape for letter {letter} (index {idx})...")
+            print(f"Starting scrape for letter: {letter}")
             if idx > 0:
                 print("Refreshing page...")
                 driver.get("https://www.austinisd.org/directory")
@@ -80,30 +149,27 @@ def scrape_aisd_directory_selenium(letters_range):
                 time.sleep(5)
 
             letter_id = f"edit-letters-{letter.lower()}"
-            print(f"Locating radio button for {letter_id}...")
             
-            letter_radio = wait.until(EC.presence_of_element_located((By.ID, letter_id)), message=f"Timeout waiting for {letter_id}")
-            print(f"Found radio button for {letter}...")
+            letter_radio = wait.until(EC.presence_of_element_located((By.ID, letter_id)))
             
             for attempt in range(3):
-                print(f"Attempt {attempt + 1} to select {letter}...")
                 driver.execute_script("arguments[0].scrollIntoView(true);", letter_radio)
                 driver.execute_script("arguments[0].click();", letter_radio)
+                print(f"Attempt {attempt + 1} to select {letter}")
                 
-                time.sleep(3)
+                time.sleep(3)  # Reduced from 5
                 is_selected = driver.execute_script("return arguments[0].checked;", letter_radio)
                 table_loaded = len(driver.find_elements(By.XPATH, "//table[starts-with(@id, 'edit-directory')]")) > 0
                 if is_selected or table_loaded:
-                    print(f"Successfully selected {letter} (checked: {is_selected}, table loaded: {table_loaded})")
+                    print(f"Successfully selected {letter}")
                     break
                 if attempt == 2:
-                    print(f"Failed to select {letter} after 3 attempts.")
-                    raise Exception(f"Failed to select {letter}")
+                    raise Exception(f"Failed to select radio button for {letter} after 3 attempts")
 
-            time.sleep(5)
-            print("Waiting for table to load...")
+            time.sleep(5)  # Reduced from 10
+            print(f"Table loading for {letter}...")
             table = wait.until(EC.visibility_of_element_located((By.XPATH, "//table[starts-with(@id, 'edit-directory')]")))
-            print(f"Table loaded with ID: {table.get_attribute('id')}")
+            print(f"Table loaded for {letter}")
 
             scroll_to_bottom(driver)
             rows = table.find_elements(By.TAG_NAME, "tr")[1:]
@@ -131,7 +197,7 @@ def scrape_aisd_directory_selenium(letters_range):
                         entry = {"name": name, "job_title": job_title, "campus": campus, "email": email, "phone": phone}
                         if entry not in employees:
                             employees.append(entry)
-                            print(f"Added entry: {name}, {job_title}, {campus}")
+                            print(f"Added entry: {name} - {job_title}")
                 except Exception as e:
                     print(f"Error parsing row for {letter}: {str(e)}")
 
@@ -141,30 +207,24 @@ def scrape_aisd_directory_selenium(letters_range):
         print(f"Scraping error: {str(e)}")
     
     finally:
-        print("Quitting driver...")
         driver.quit()
-    
-    print(f"Scrape complete for range {letters_range}. Total entries: {len(employees)}")
+        print("WebDriver quit, scrape finished for range.")
+
     return employees
 
 @app.route('/scrape', methods=['GET'])
 def scrape():
-    print("Received /scrape request...")
-    range_param = request.args.get('range', 'A-Z')  # Default to A-Z, e.g., ?range=A-E
+    print("Received /scrape request")
+    range_param = request.args.get('range', 'A-B')  # Default to A-B, e.g., ?range=C-D
     print(f"Processing range: {range_param}")
     try:
         data = scrape_aisd_directory_selenium(range_param)
-        print(f"Returning data with {len(data)} entries...")
+        print(f"Scrape completed for {range_param}, returning {len(data)} records")
         return jsonify(data)
     except Exception as e:
         error_trace = traceback.format_exc()
-        print(f"Error in /scrape: {str(e)}\n{error_trace}")
+        print(f"Error in scrape: {str(e)}\n{error_trace}")
         return jsonify({"error": str(e), "traceback": error_trace}), 500
-
-@app.route('/health', methods=['GET'])
-def health():
-    print("Health check passed")
-    return jsonify({"status": "healthy"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
