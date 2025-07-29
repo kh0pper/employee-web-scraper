@@ -102,7 +102,7 @@ def scroll_to_bottom(driver):
     for _ in range(3):
         last_height = driver.execute_script("return document.body.scrollHeight")
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)  # Reduced from 3
+        time.sleep(2)
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height == last_height:
             print("Scroll complete.")
@@ -116,27 +116,27 @@ def scrape_aisd_directory_selenium(letters_range):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1280,720")  # Smaller window
-    options.add_argument("--disable-extensions")    # Reduce overhead
+    options.add_argument("--window-size=1280,720")
+    options.add_argument("--disable-extensions")
     
     service = Service(executable_path='/usr/local/bin/chromedriver')
     driver = webdriver.Chrome(service=service, options=options)
     print("WebDriver initialized, navigating to directory...")
 
-    driver.set_script_timeout(300)  # 5-minute timeout
+    driver.set_script_timeout(300)
     driver.get("https://www.austinisd.org/directory")
     
     wait = WebDriverWait(driver, 60)
     print("Waiting for page to load...")
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-    time.sleep(5)  # Reduced from 10
+    time.sleep(5)
 
     employees = []
 
     try:
         start_idx, end_idx = letters_range.split('-')
         start_idx = ord(start_idx.upper()) - ord('A')
-        end_idx = min(ord(end_idx.upper()) - ord('A') + 1, start_idx + 2)  # Limit to 2 letters
+        end_idx = min(ord(end_idx.upper()) - ord('A') + 1, start_idx + 2)  # 2-letter range
         if end_idx > 26: end_idx = 26  # Cap at Z
         letters = [chr(i + ord('A')) for i in range(start_idx, end_idx)]
 
@@ -157,7 +157,7 @@ def scrape_aisd_directory_selenium(letters_range):
                 driver.execute_script("arguments[0].click();", letter_radio)
                 print(f"Attempt {attempt + 1} to select {letter}")
                 
-                time.sleep(3)  # Reduced from 5
+                time.sleep(3)
                 is_selected = driver.execute_script("return arguments[0].checked;", letter_radio)
                 table_loaded = len(driver.find_elements(By.XPATH, "//table[starts-with(@id, 'edit-directory')]")) > 0
                 if is_selected or table_loaded:
@@ -166,7 +166,7 @@ def scrape_aisd_directory_selenium(letters_range):
                 if attempt == 2:
                     raise Exception(f"Failed to select radio button for {letter} after 3 attempts")
 
-            time.sleep(5)  # Reduced from 10
+            time.sleep(5)
             print(f"Table loading for {letter}...")
             table = wait.until(EC.visibility_of_element_located((By.XPATH, "//table[starts-with(@id, 'edit-directory')]")))
             print(f"Table loaded for {letter}")
@@ -215,7 +215,7 @@ def scrape_aisd_directory_selenium(letters_range):
 @app.route('/scrape', methods=['GET'])
 def scrape():
     print("Received /scrape request")
-    range_param = request.args.get('range', 'A-B')  # Default to A-B, e.g., ?range=C-D
+    range_param = request.args.get('range', 'A-B')  # Default to A-B
     print(f"Processing range: {range_param}")
     try:
         data = scrape_aisd_directory_selenium(range_param)
@@ -226,7 +226,12 @@ def scrape():
         print(f"Error in scrape: {str(e)}\n{error_trace}")
         return jsonify({"error": str(e), "traceback": error_trace}), 500
 
+@app.route('/health', methods=['GET'])
+def health():
+    print("Health check passed")
+    return jsonify({"status": "healthy"}), 200
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))  # Match Render's detected port
     print(f"Starting app on port {port}...")
     app.run(host="0.0.0.0", port=port)
